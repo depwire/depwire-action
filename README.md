@@ -1,30 +1,30 @@
 # Depwire PR Impact Analysis
 
-> GitHub Action that analyzes dependency changes, health score delta, and architecture impact on every pull request.
-
-[![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue?logo=github-actions)](https://github.com/marketplace/actions/depwire-pr-impact)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-Depwire%20PR%20Impact-blue?logo=github)](https://github.com/marketplace/actions/depwire-pr-impact)
+[![GitHub release](https://img.shields.io/github/v/release/depwire/depwire-action?logo=github)](https://github.com/depwire/depwire-action/releases)
 [![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](LICENSE)
 
-## What It Does
+**Automatically analyze dependency changes, health score delta, and architecture impact on every pull request.**
 
-When a developer opens or updates a PR, this action:
+When a developer opens or updates a PR, this action compares the base branch to the PR branch, analyzes the dependency graph, calculates health score changes, and posts a detailed markdown comment with impact analysis — helping teams catch architectural issues before merge.
 
-1. **Compares base branch to PR branch** — shows exactly what changed
-2. **Analyzes dependency impact** — identifies high-risk file modifications
-3. **Calculates health score delta** — shows if code quality improved or degraded
-4. **Posts a detailed comment** — clean, formatted markdown report on the PR
+![Depwire PR Comment Example](assets/depwire-action.png)
 
-Every PR gets automatic dependency intelligence — no manual analysis required.
+---
 
 ## Quick Start
 
-Create `.github/workflows/depwire.yml`:
+Create `.github/workflows/depwire.yml` in your repository:
 
 ```yaml
 name: Depwire PR Impact
 on:
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   depwire:
@@ -43,19 +43,49 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-That's it! The action will post a comment on every PR showing:
+That's it! Every PR will now get an automated comment showing:
 
-- Files added, removed, modified
-- Symbols and edges added/removed
-- Health score before/after with deltas per dimension
-- Impact analysis: which files are risky to change
-- New dependencies introduced by the PR
+- **Summary Table** — Files, symbols, edges, and health score before/after with deltas
+- **Health Score Breakdown** — 6 dimensions (Coupling, Cohesion, Circular Deps, God Files, Orphan Files, Depth)
+- **Files Changed** — Added, removed, modified files with symbol counts
+- **Impact Analysis** — Risk assessment for each changed file (high/medium/low risk based on connections)
+- **New Dependencies** — Edges added by the PR
 
-## Example Comment
+---
 
-<img width="800" alt="Depwire PR Comment Example" src="https://github.com/depwire/depwire-action/assets/example-comment.png">
+## What It Reports
 
-_(Screenshot shows: summary table, health breakdown, files changed, impact analysis, new dependencies)_
+### Summary Table
+| Metric | Base | PR | Delta |
+|--------|------|-----|-------|
+| Files | 45 | 48 | ↑ +3 |
+| Symbols | 523 | 589 | ↑ +66 |
+| Edges | 159 | 178 | ↑ +19 |
+| Health Score | 78/100 (C) | 81/100 (B) | ↑ +3 |
+
+### Health Score Breakdown
+6 dimensions with before/after scores and deltas:
+- **Coupling** — Module interconnection density
+- **Cohesion** — File focus and responsibility clarity
+- **Circular Dependencies** — Import cycle detection
+- **God Files** — Large file detection (high symbol count)
+- **Orphan Files** — Disconnected code identification
+- **Depth** — Dependency tree depth analysis
+
+### Files Changed
+Lists added, removed, and modified files with symbol and edge counts.
+
+### Impact Analysis
+Risk assessment table showing:
+| File | Risk | Connections | Reason |
+|------|------|-------------|--------|
+| `src/index.ts` | ⚠️ High | 28 | Hub file modified — changes affect 28 connected files |
+| `src/auth/oauth.ts` | ✅ Low | 0 | New file, no existing dependents |
+
+### Powered by Depwire
+Every comment includes a footer link to [Depwire](https://depwire.dev) for local CLI usage.
+
+---
 
 ## Inputs
 
@@ -64,9 +94,11 @@ _(Screenshot shows: summary table, health breakdown, files changed, impact analy
 | `github-token` | GitHub token for posting PR comments | Yes | `${{ github.token }}` |
 | `path` | Path to the project to analyze (relative to repo root) | No | `.` |
 | `depwire-version` | Version of `depwire-cli` to use | No | `latest` |
-| `show-diagram` | Include arc diagram in PR comment | No | `true` |
 | `fail-on-score-drop` | Fail the action if health score drops by more than this amount | No | `0` |
+| `show-diagram` | Include arc diagram in PR comment (future feature) | No | `true` |
 | `comment-header` | Custom header for the PR comment | No | `## 🔍 Depwire PR Impact Analysis` |
+
+---
 
 ## Outputs
 
@@ -77,11 +109,13 @@ _(Screenshot shows: summary table, health breakdown, files changed, impact analy
 | `health-delta` | Change in health score from base branch |
 | `files-changed` | Total number of files added, removed, or modified |
 
+---
+
 ## Advanced Usage
 
 ### Fail PR if Health Score Drops
 
-Enforce a minimum health score threshold:
+Enforce a minimum health score threshold to block PRs that degrade code quality:
 
 ```yaml
 - uses: depwire/depwire-action@v1
@@ -90,7 +124,7 @@ Enforce a minimum health score threshold:
     fail-on-score-drop: 5
 ```
 
-If the health score drops by more than 5 points, the action will fail and block the PR.
+If the health score drops by more than 5 points, the action will fail and block the PR merge.
 
 ### Monorepo: Analyze Specific Package
 
@@ -103,9 +137,9 @@ For monorepos, analyze a specific subdirectory:
     path: packages/backend
 ```
 
-### Pin Depwire Version
+### Pin Depwire CLI Version
 
-Lock to a specific version of `depwire-cli`:
+Lock to a specific version of `depwire-cli` for reproducible builds:
 
 ```yaml
 - uses: depwire/depwire-action@v1
@@ -116,7 +150,7 @@ Lock to a specific version of `depwire-cli`:
 
 ### Use Outputs in Subsequent Steps
 
-Access the outputs in later steps:
+Access the health score and other metrics in later workflow steps:
 
 ```yaml
 - uses: depwire/depwire-action@v1
@@ -129,18 +163,28 @@ Access the outputs in later steps:
     echo "Health score: ${{ steps.depwire.outputs.health-score }}"
     echo "Grade: ${{ steps.depwire.outputs.health-grade }}"
     echo "Delta: ${{ steps.depwire.outputs.health-delta }}"
+    
+    if [ ${{ steps.depwire.outputs.health-delta }} -lt 0 ]; then
+      echo "⚠️ Health score decreased!"
+    fi
 ```
+
+---
 
 ## How It Works
 
-1. **Checkout PR branch** — analyze current state
-2. **Checkout base branch** — analyze before state
-3. **Run `depwire parse --json`** on both branches
-4. **Run `depwire health --json`** on both branches
-5. **Compute diff** — identify added/removed/modified files, symbols, edges
-6. **Analyze impact** — flag high-risk file modifications (20+ connections)
-7. **Build comment** — format results as clean markdown
-8. **Post or update comment** — don't create duplicates on subsequent pushes
+1. **Install Depwire CLI** — `npm install -g depwire-cli`
+2. **Analyze PR branch** — Parse and calculate health score
+3. **Checkout base branch** — Switch to the target branch (e.g., `main`)
+4. **Analyze base branch** — Parse and calculate health score
+5. **Compute diff** — Compare files, symbols, edges, and health scores
+6. **Analyze impact** — Flag high-risk changes (files with 20+ connections)
+7. **Build markdown comment** — Format results as clean tables
+8. **Post or update comment** — Avoids duplicates by updating existing comments
+
+The action runs `depwire parse` and `depwire health` on both branches, computes the delta, and generates a comprehensive report.
+
+---
 
 ## What Is Depwire?
 
@@ -157,7 +201,7 @@ It parses your code (TypeScript, JavaScript, Python, Go), builds a cross-referen
 
 Depwire is designed for **AI coding tools** — it gives AI agents the context they need to understand your architecture before making changes.
 
-## Local Usage
+### Local Usage
 
 Install `depwire-cli` locally to run the same analysis on your machine:
 
@@ -172,23 +216,27 @@ depwire viz .
 
 See [github.com/depwire/depwire](https://github.com/depwire/depwire) for full documentation.
 
+---
+
 ## License
 
 This action is licensed under the [Business Source License 1.1](LICENSE).
 
-Free for:
+**Free for:**
 - Personal use
 - Open source projects
 - Companies with <$1M annual revenue
 
-Paid license required for larger commercial use. See [depwire.dev/pricing](https://depwire.dev/pricing).
+**Paid license required** for larger commercial use. See [depwire.dev/pricing](https://depwire.dev/pricing).
+
+---
 
 ## Support
 
 - **Issues**: [github.com/depwire/depwire-action/issues](https://github.com/depwire/depwire-action/issues)
+- **Documentation**: [github.com/depwire/depwire](https://github.com/depwire/depwire)
 - **Discussions**: [github.com/depwire/depwire/discussions](https://github.com/depwire/depwire/discussions)
-- **Twitter**: [@depwire](https://twitter.com/depwire)
 
 ---
 
-<sub>Built by [Atef Ataya](https://github.com/atefataya) — Powered by [Depwire](https://depwire.dev)</sub>
+<sub>Powered by [Depwire](https://depwire.dev) — install `npm install -g depwire-cli` for local analysis</sub>
