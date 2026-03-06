@@ -1,0 +1,39 @@
+{
+  "name": "depwire-action",
+  "version": "1.0.0",
+  "description": "GitHub Action - Depwire dependency analysis on every PR. Shows impact, health score delta, and arc diagram",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "lint": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/depwire/depwire-action.git"
+  },
+  "keywords": [
+    "github-action",
+    "dependency-analysis",
+    "code-graph",
+    "impact-analysis",
+    "health-score",
+    "architecture"
+  ],
+  "author": "Atef Ataya",
+  "license": "BSL-1.1",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/depwire/depwire-action/issues"
+  },
+  "homepage": "https://github.com/depwire/depwire-action#readme",
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@vercel/ncc": "^0.38.3",
+    "typescript": "^5.8.1"
+  },
+  "dependencies": {
+    "@actions/core": "^1.10.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.0"
+  }
+}

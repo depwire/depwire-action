@@ -1,0 +1,52 @@
+name: 'Depwire PR Impact'
+description: 'Analyze dependency changes, health score delta, and architecture impact on every PR'
+author: 'Atef Ataya'
+
+branding:
+  icon: 'git-pull-request'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for posting PR comments'
+    required: true
+    default: ${{ github.token }}
+  
+  path:
+    description: 'Path to the project to analyze (relative to repo root)'
+    required: false
+    default: '.'
+  
+  depwire-version:
+    description: 'Version of depwire-cli to use'
+    required: false
+    default: 'latest'
+  
+  show-diagram:
+    description: 'Include arc diagram in PR comment'
+    required: false
+    default: 'true'
+  
+  fail-on-score-drop:
+    description: 'Fail the action if health score drops by more than this amount'
+    required: false
+    default: '0'
+  
+  comment-header:
+    description: 'Custom header for the PR comment'
+    required: false
+    default: '## 🔍 Depwire PR Impact Analysis'
+
+outputs:
+  health-score:
+    description: 'Current health score (0-100)'
+  health-grade:
+    description: 'Current health grade (A-F)'
+  health-delta:
+    description: 'Change in health score from base branch'
+  files-changed:
+    description: 'Total number of files added, removed, or modified'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
