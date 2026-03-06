@@ -1,5 +1,7 @@
 import * as exec from '@actions/exec';
 import * as core from '@actions/core';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ParseResult, HealthReport } from './types';
 
 export async function installDepwire(version: string): Promise<void> {
@@ -17,14 +19,21 @@ export async function installDepwire(version: string): Promise<void> {
 }
 
 export async function runParse(projectPath: string): Promise<ParseResult> {
-  core.info(`Running depwire parse ${projectPath} --json...`);
+  core.info(`Running depwire parse ${projectPath}...`);
+  
+  const outputFile = path.join(projectPath, 'depwire-output.json');
+  
+  if (fs.existsSync(outputFile)) {
+    core.info(`Removing existing ${outputFile}`);
+    fs.unlinkSync(outputFile);
+  }
   
   let stdout = '';
   let stderr = '';
   let exitCode = 0;
   
   try {
-    exitCode = await exec.exec('depwire', ['parse', projectPath, '--json'], {
+    exitCode = await exec.exec('depwire', ['parse', projectPath], {
       listeners: {
         stdout: (data: Buffer) => {
           stdout += data.toString();
@@ -48,18 +57,23 @@ export async function runParse(projectPath: string): Promise<ParseResult> {
       throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
     }
     
-    if (!stdout.trim()) {
-      throw new Error(`No output from depwire parse. stderr: ${stderr || '(empty)'}`);
+    if (!fs.existsSync(outputFile)) {
+      throw new Error(`depwire parse did not create output file at ${outputFile}`);
     }
     
-    const result = JSON.parse(stdout) as ParseResult;
+    const fileContent = fs.readFileSync(outputFile, 'utf-8');
+    const result = JSON.parse(fileContent) as ParseResult;
+    
     core.info(`Parsed ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
+    
+    fs.unlinkSync(outputFile);
+    
     return result;
     
   } catch (error) {
     if (error instanceof SyntaxError) {
-      core.error(`Failed to parse JSON. First 500 chars of output: ${stdout.substring(0, 500)}`);
-      throw new Error(`Invalid JSON from depwire parse. Output: ${stdout.substring(0, 500)}`);
+      core.error(`Failed to parse JSON from ${outputFile}`);
+      throw new Error(`Invalid JSON in depwire output file`);
     }
     throw error;
   }
