@@ -17,13 +17,14 @@ export async function installDepwire(version: string): Promise<void> {
 }
 
 export async function runParse(projectPath: string): Promise<ParseResult> {
-  core.info(`Running depwire parse on ${projectPath}...`);
+  core.info(`Running depwire parse ${projectPath} --json...`);
   
   let stdout = '';
   let stderr = '';
+  let exitCode = 0;
   
   try {
-    await exec.exec('depwire', ['parse', projectPath, '--json'], {
+    exitCode = await exec.exec('depwire', ['parse', projectPath, '--json'], {
       listeners: {
         stdout: (data: Buffer) => {
           stdout += data.toString();
@@ -32,11 +33,23 @@ export async function runParse(projectPath: string): Promise<ParseResult> {
           stderr += data.toString();
         }
       },
-      silent: true
+      silent: true,
+      ignoreReturnCode: true
     });
     
+    if (exitCode !== 0) {
+      core.error(`depwire parse exited with code ${exitCode}`);
+      if (stderr.trim()) {
+        core.error(`stderr: ${stderr}`);
+      }
+      if (stdout.trim()) {
+        core.error(`stdout: ${stdout.substring(0, 1000)}`);
+      }
+      throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
+    }
+    
     if (!stdout.trim()) {
-      throw new Error(`No output from depwire parse. stderr: ${stderr}`);
+      throw new Error(`No output from depwire parse. stderr: ${stderr || '(empty)'}`);
     }
     
     const result = JSON.parse(stdout) as ParseResult;
@@ -45,20 +58,22 @@ export async function runParse(projectPath: string): Promise<ParseResult> {
     
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`Failed to parse JSON output from depwire parse. Output: ${stdout.substring(0, 500)}`);
+      core.error(`Failed to parse JSON. First 500 chars of output: ${stdout.substring(0, 500)}`);
+      throw new Error(`Invalid JSON from depwire parse. Output: ${stdout.substring(0, 500)}`);
     }
-    throw new Error(`Failed to run depwire parse: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
 }
 
 export async function runHealth(projectPath: string): Promise<HealthReport> {
-  core.info(`Running depwire health on ${projectPath}...`);
+  core.info(`Running depwire health ${projectPath} --json...`);
   
   let stdout = '';
   let stderr = '';
+  let exitCode = 0;
   
   try {
-    await exec.exec('depwire', ['health', projectPath, '--json'], {
+    exitCode = await exec.exec('depwire', ['health', projectPath, '--json'], {
       listeners: {
         stdout: (data: Buffer) => {
           stdout += data.toString();
@@ -67,11 +82,23 @@ export async function runHealth(projectPath: string): Promise<HealthReport> {
           stderr += data.toString();
         }
       },
-      silent: true
+      silent: true,
+      ignoreReturnCode: true
     });
     
+    if (exitCode !== 0) {
+      core.error(`depwire health exited with code ${exitCode}`);
+      if (stderr.trim()) {
+        core.error(`stderr: ${stderr}`);
+      }
+      if (stdout.trim()) {
+        core.error(`stdout: ${stdout.substring(0, 1000)}`);
+      }
+      throw new Error(`depwire health failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
+    }
+    
     if (!stdout.trim()) {
-      throw new Error(`No output from depwire health. stderr: ${stderr}`);
+      throw new Error(`No output from depwire health. stderr: ${stderr || '(empty)'}`);
     }
     
     const result = JSON.parse(stdout) as HealthReport;
@@ -80,8 +107,9 @@ export async function runHealth(projectPath: string): Promise<HealthReport> {
     
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`Failed to parse JSON output from depwire health. Output: ${stdout.substring(0, 500)}`);
+      core.error(`Failed to parse JSON. First 500 chars of output: ${stdout.substring(0, 500)}`);
+      throw new Error(`Invalid JSON from depwire health. Output: ${stdout.substring(0, 500)}`);
     }
-    throw new Error(`Failed to run depwire health: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
 }
