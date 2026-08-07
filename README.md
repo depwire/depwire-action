@@ -63,6 +63,8 @@ That's it! Every PR will now get an automated comment showing:
 | Edges | 159 | 178 | ↑ +19 |
 | Health Score | 78/100 (C) | 81/100 (B) | ↑ +3 |
 
+<sub>Illustrative figures, not from a specific repository.</sub>
+
 ### Health Score Breakdown
 6 dimensions with before/after scores and deltas:
 - **Coupling** — Module interconnection density
@@ -93,7 +95,7 @@ Every comment includes a footer link to [Depwire](https://depwire.dev) for local
 |-------|-------------|----------|---------|
 | `github-token` | GitHub token for posting PR comments | Yes | `${{ github.token }}` |
 | `path` | Path to the project to analyze (relative to repo root) | No | `.` |
-| `depwire-version` | Version of `depwire-cli` to use | No | `latest` |
+| `depwire-version` | Version of `depwire-cli` to use. Pinned to a known-good release by default | No | `1.9.2` |
 | `fail-on-score-drop` | Fail the action if health score drops by more than this amount | No | `0` |
 | `show-diagram` | Include arc diagram in PR comment (future feature) | No | `true` |
 | `comment-header` | Custom header for the PR comment | No | `## 🔍 Depwire PR Impact Analysis` |
@@ -137,16 +139,40 @@ For monorepos, analyze a specific subdirectory:
     path: packages/backend
 ```
 
-### Pin Depwire CLI Version
+### Choose a Depwire CLI Version
 
-Lock to a specific version of `depwire-cli` for reproducible builds:
+The action pins `depwire-cli` to a known-good release (currently `1.9.2`) so that a CLI
+release can never change your PR checks without a version bump on your side.
+
+To track the newest release instead, opt in explicitly:
 
 ```yaml
 - uses: depwire/depwire-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    depwire-version: '1.2.3'
+    depwire-version: 'latest'
 ```
+
+Or pin to a different specific version:
+
+```yaml
+- uses: depwire/depwire-action@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    depwire-version: '1.9.2'
+```
+
+### When There's Nothing to Analyze
+
+If Depwire finds no supported source files at the configured `path` — an unsupported
+language, a docs-only directory, or a monorepo subpath with no code — the action posts a
+short neutral comment and **passes**:
+
+> Depwire found no supported files at `docs/` — nothing to analyze.
+
+No score, grade, or risk badge is reported, and `fail-on-score-drop` does not trigger,
+because there is no score to compare. Genuine failures — a broken install, an
+unreadable repository — still fail the check loudly.
 
 ### Use Outputs in Subsequent Steps
 
@@ -190,7 +216,7 @@ The action runs `depwire parse` and `depwire health` on both branches, computes 
 
 [Depwire](https://depwire.dev) is a **dependency intelligence tool** for modern codebases.
 
-It parses your code (TypeScript, JavaScript, Python, Go), builds a cross-reference graph, and calculates a **health score** across 6 dimensions:
+It parses your code across 16 languages — including TypeScript, JavaScript, Python, Go, Java, Kotlin, Rust, C, C++, C#, PHP, Ruby, Swift and Dart, plus HTML/Angular templates — builds a cross-reference graph, and calculates a **health score** across 6 dimensions:
 
 - **Coupling** — how tightly connected your modules are
 - **Cohesion** — how focused each file is
@@ -210,7 +236,7 @@ npm install -g depwire-cli
 
 depwire parse .
 depwire health .
-depwire impact src/auth/index.ts
+depwire affected src/auth/index.ts
 depwire viz .
 ```
 
