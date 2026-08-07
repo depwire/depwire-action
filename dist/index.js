@@ -30128,7 +30128,9 @@ async function installDepwire(version) {
 }
 async function runParse(projectPath) {
     core.info(`Running depwire parse ${projectPath}...`);
-    const outputFile = path.join(projectPath, 'depwire-output.json');
+    // depwire-cli always writes depwire-output.json relative to the process's
+    // current working directory, regardless of the project path argument.
+    const outputFile = path.join(process.cwd(), 'depwire-output.json');
     if (fs.existsSync(outputFile)) {
         core.info(`Removing existing ${outputFile}`);
         fs.unlinkSync(outputFile);
