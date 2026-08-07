@@ -23,7 +23,7 @@ inputs:
     default: '1.9.2'
   
   show-diagram:
-    description: 'Include arc diagram in PR comment'
+    description: 'Reserved for a future release — arc diagrams are not yet rendered in PR comments. Currently ignored.'
     required: false
     default: 'true'
   
