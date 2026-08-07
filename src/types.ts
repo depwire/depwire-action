@@ -118,3 +118,7 @@ export interface ImpactAnalysis {
   items: ImpactItem[];
   totalRisk: 'high' | 'medium' | 'low';
 }
+
+export interface NoParseableFilesResult {
+  status: 'no_parseable_files';
+}

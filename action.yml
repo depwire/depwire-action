@@ -18,9 +18,9 @@ inputs:
     default: '.'
   
   depwire-version:
-    description: 'Version of depwire-cli to use'
+    description: 'Version of depwire-cli to use. Pinned to a known-good release by default; set to "latest" to opt in to the newest release.'
     required: false
-    default: 'latest'
+    default: '1.9.2'
   
   show-diagram:
     description: 'Include arc diagram in PR comment'

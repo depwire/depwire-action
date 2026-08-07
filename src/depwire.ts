@@ -2,7 +2,9 @@ import * as exec from '@actions/exec';
 import * as core from '@actions/core';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ParseResult, HealthReport } from './types';
+import { ParseResult, HealthReport, NoParseableFilesResult } from './types';
+
+const NO_PARSEABLE_FILES_EXIT_CODE = 2;
 
 export async function installDepwire(version: string): Promise<void> {
   const pkg = version === 'latest' ? 'depwire-cli' : `depwire-cli@${version}`;
@@ -18,7 +20,7 @@ export async function installDepwire(version: string): Promise<void> {
   }
 }
 
-export async function runParse(projectPath: string): Promise<ParseResult> {
+export async function runParse(projectPath: string): Promise<ParseResult | NoParseableFilesResult> {
   core.info(`Running depwire parse ${projectPath}...`);
   
   const outputFile = path.join(projectPath, 'depwire-output.json');
@@ -45,6 +47,11 @@ export async function runParse(projectPath: string): Promise<ParseResult> {
       silent: true,
       ignoreReturnCode: true
     });
+    
+    if (exitCode === NO_PARSEABLE_FILES_EXIT_CODE) {
+      core.info(`depwire parse found no parseable files at ${projectPath}`);
+      return { status: 'no_parseable_files' };
+    }
     
     if (exitCode !== 0) {
       core.error(`depwire parse exited with code ${exitCode}`);
@@ -79,7 +86,7 @@ export async function runParse(projectPath: string): Promise<ParseResult> {
   }
 }
 
-export async function runHealth(projectPath: string): Promise<HealthReport> {
+export async function runHealth(projectPath: string): Promise<HealthReport | NoParseableFilesResult> {
   core.info(`Running depwire health ${projectPath} --json...`);
   
   let stdout = '';
@@ -99,6 +106,11 @@ export async function runHealth(projectPath: string): Promise<HealthReport> {
       silent: true,
       ignoreReturnCode: true
     });
+    
+    if (exitCode === NO_PARSEABLE_FILES_EXIT_CODE) {
+      core.info(`depwire health found no parseable files at ${projectPath}`);
+      return { status: 'no_parseable_files' };
+    }
     
     if (exitCode !== 0) {
       core.error(`depwire health exited with code ${exitCode}`);

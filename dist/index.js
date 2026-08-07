@@ -1761,6 +1761,7 @@ class Context {
         this.action = process.env.GITHUB_ACTION;
         this.actor = process.env.GITHUB_ACTOR;
         this.job = process.env.GITHUB_JOB;
+        this.runAttempt = parseInt(process.env.GITHUB_RUN_ATTEMPT, 10);
         this.runNumber = parseInt(process.env.GITHUB_RUN_NUMBER, 10);
         this.runId = parseInt(process.env.GITHUB_RUN_ID, 10);
         this.apiUrl = (_a = process.env.GITHUB_API_URL) !== null && _a !== void 0 ? _a : `https://api.github.com`;
@@ -30636,6 +30637,7 @@ const exec = __importStar(__nccwpck_require__(5236));
 const core = __importStar(__nccwpck_require__(7484));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
+const NO_PARSEABLE_FILES_EXIT_CODE = 2;
 async function installDepwire(version) {
     const pkg = version === 'latest' ? 'depwire-cli' : `depwire-cli@${version}`;
     core.info(`Installing ${pkg}...`);
@@ -30672,6 +30674,10 @@ async function runParse(projectPath) {
             silent: true,
             ignoreReturnCode: true
         });
+        if (exitCode === NO_PARSEABLE_FILES_EXIT_CODE) {
+            core.info(`depwire parse found no parseable files at ${projectPath}`);
+            return { status: 'no_parseable_files' };
+        }
         if (exitCode !== 0) {
             core.error(`depwire parse exited with code ${exitCode}`);
             if (stderr.trim()) {
@@ -30717,6 +30723,10 @@ async function runHealth(projectPath) {
             silent: true,
             ignoreReturnCode: true
         });
+        if (exitCode === NO_PARSEABLE_FILES_EXIT_CODE) {
+            core.info(`depwire health found no parseable files at ${projectPath}`);
+            return { status: 'no_parseable_files' };
+        }
         if (exitCode !== 0) {
             core.error(`depwire health exited with code ${exitCode}`);
             if (stderr.trim()) {
@@ -31005,6 +31015,9 @@ const depwire_1 = __nccwpck_require__(8443);
 const diff_1 = __nccwpck_require__(9952);
 const impact_1 = __nccwpck_require__(4713);
 const comment_1 = __nccwpck_require__(2246);
+function isNoParseableFiles(value) {
+    return !!value && typeof value === 'object' && value.status === 'no_parseable_files';
+}
 async function findExistingComment(octokit, owner, repo, prNumber, header) {
     try {
         const comments = await octokit.rest.issues.listComments({
@@ -31020,11 +31033,32 @@ async function findExistingComment(octokit, owner, repo, prNumber, header) {
         return null;
     }
 }
+async function postComment(octokit, owner, repo, prNumber, header, body) {
+    const existingId = await findExistingComment(octokit, owner, repo, prNumber, header);
+    if (existingId) {
+        await octokit.rest.issues.updateComment({
+            owner,
+            repo,
+            comment_id: existingId,
+            body
+        });
+        core.info('Updated existing PR comment.');
+    }
+    else {
+        await octokit.rest.issues.createComment({
+            owner,
+            repo,
+            issue_number: prNumber,
+            body
+        });
+        core.info('Posted new PR comment.');
+    }
+}
 async function run() {
     try {
         const token = core.getInput('github-token', { required: true });
         const projectPath = core.getInput('path') || '.';
-        const depwireVersion = core.getInput('depwire-version') || 'latest';
+        const depwireVersion = core.getInput('depwire-version') || '1.9.2';
         const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
         const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
         const octokit = github.getOctokit(token);
@@ -31038,7 +31072,19 @@ async function run() {
         await (0, depwire_1.installDepwire)(depwireVersion);
         core.info('Analyzing PR branch...');
         const prParse = await (0, depwire_1.runParse)(projectPath);
+        if (isNoParseableFiles(prParse)) {
+            core.info(`No parseable files found at ${projectPath}. Nothing to analyze.`);
+            await postComment(octokit, owner, repo, prNumber, commentHeader, `${commentHeader}\n\nDepwire found no supported files at \`${projectPath}\` — nothing to analyze.`);
+            core.info('Depwire PR Impact Analysis complete (nothing to analyze).');
+            return;
+        }
         const prHealth = await (0, depwire_1.runHealth)(projectPath);
+        if (isNoParseableFiles(prHealth)) {
+            core.info(`No parseable files found at ${projectPath}. Nothing to analyze.`);
+            await postComment(octokit, owner, repo, prNumber, commentHeader, `${commentHeader}\n\nDepwire found no supported files at \`${projectPath}\` — nothing to analyze.`);
+            core.info('Depwire PR Impact Analysis complete (nothing to analyze).');
+            return;
+        }
         core.info('Checking out base branch...');
         const baseSha = github.context.payload.pull_request?.base?.sha;
         if (!baseSha) {
@@ -31048,13 +31094,19 @@ async function run() {
         await exec.exec('git', ['checkout', baseSha]);
         core.info('Analyzing base branch...');
         const baseParse = await (0, depwire_1.runParse)(projectPath);
-        const baseHealth = await (0, depwire_1.runHealth)(projectPath);
+        const baseHealth = isNoParseableFiles(baseParse) ? baseParse : await (0, depwire_1.runHealth)(projectPath);
         core.info('Switching back to PR branch...');
         const prSha = github.context.payload.pull_request?.head?.sha;
         if (!prSha) {
             throw new Error('Could not determine PR SHA');
         }
         await exec.exec('git', ['checkout', prSha]);
+        if (isNoParseableFiles(baseParse) || isNoParseableFiles(baseHealth)) {
+            core.info(`No parseable files found at ${projectPath} on the base branch. Nothing to analyze.`);
+            await postComment(octokit, owner, repo, prNumber, commentHeader, `${commentHeader}\n\nDepwire found no supported files at \`${projectPath}\` — nothing to analyze.`);
+            core.info('Depwire PR Impact Analysis complete (nothing to analyze).');
+            return;
+        }
         core.info('Computing diff...');
         const diff = (0, diff_1.computeDiff)(baseParse, prParse, baseHealth, prHealth);
         core.info('Analyzing impact...');
@@ -31062,25 +31114,7 @@ async function run() {
         core.info('Building comment...');
         const comment = (0, comment_1.buildComment)(diff, impact, commentHeader);
         core.info('Posting comment to PR...');
-        const existingId = await findExistingComment(octokit, owner, repo, prNumber, commentHeader);
-        if (existingId) {
-            await octokit.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existingId,
-                body: comment
-            });
-            core.info('Updated existing PR comment.');
-        }
-        else {
-            await octokit.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: comment
-            });
-            core.info('Posted new PR comment.');
-        }
+        await postComment(octokit, owner, repo, prNumber, commentHeader, comment);
         core.setOutput('health-score', prHealth.overall);
         core.setOutput('health-grade', prHealth.grade);
         core.setOutput('health-delta', diff.healthDelta.overallDelta);
