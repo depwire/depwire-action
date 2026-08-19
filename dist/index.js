@@ -30535,7 +30535,7 @@ async function run() {
     try {
         const token = core.getInput('github-token', { required: true });
         const projectPath = core.getInput('path') || '.';
-        const depwireVersion = core.getInput('depwire-version') || '1.9.2';
+        const depwireVersion = core.getInput('depwire-version') || '1.15.0';
         const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
         const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
         const octokit = github.getOctokit(token);

@@ -95,7 +95,7 @@ Every comment includes a footer link to [Depwire](https://depwire.dev) for local
 |-------|-------------|----------|---------|
 | `github-token` | GitHub token for posting PR comments | Yes | `${{ github.token }}` |
 | `path` | Path to the project to analyze (relative to repo root) | No | `.` |
-| `depwire-version` | Version of `depwire-cli` to use. Pinned to a known-good release by default | No | `1.9.2` |
+| `depwire-version` | Version of `depwire-cli` to use. Pinned to a known-good release by default | No | `1.15.0` |
 | `fail-on-score-drop` | Fail the action if health score drops by more than this amount | No | `0` |
 | `show-diagram` | Include arc diagram in PR comment (future feature) | No | `true` |
 | `comment-header` | Custom header for the PR comment | No | `## 🔍 Depwire PR Impact Analysis` |
@@ -141,7 +141,7 @@ For monorepos, analyze a specific subdirectory:
 
 ### Choose a Depwire CLI Version
 
-The action pins `depwire-cli` to a known-good release (currently `1.9.2`) so that a CLI
+The action pins `depwire-cli` to a known-good release (currently `1.15.0`) so that a CLI
 release can never change your PR checks without a version bump on your side.
 
 To track the newest release instead, opt in explicitly:
@@ -159,7 +159,7 @@ Or pin to a different specific version:
 - uses: depwire/depwire-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    depwire-version: '1.9.2'
+    depwire-version: '1.15.0'
 ```
 
 ### When There's Nothing to Analyze
