@@ -66,7 +66,7 @@ async function run(): Promise<void> {
   try {
     const token = core.getInput('github-token', { required: true });
     const projectPath = core.getInput('path') || '.';
-    const depwireVersion = core.getInput('depwire-version') || '1.15.0';
+    const depwireVersion = core.getInput('depwire-version') || '1.20.0';
     const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
     const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
     
@@ -84,9 +84,9 @@ async function run(): Promise<void> {
     await installDepwire(depwireVersion);
     
     core.info('Analyzing PR branch...');
-    const prParse = await runParse(projectPath);
+    const prResult = await runParse(projectPath);
     
-    if (isNoParseableFiles(prParse)) {
+    if (isNoParseableFiles(prResult)) {
       core.info(`No parseable files found at ${projectPath}. Nothing to analyze.`);
       await postComment(
         octokit,
@@ -99,6 +99,9 @@ async function run(): Promise<void> {
       core.info('Depwire PR Impact Analysis complete (nothing to analyze).');
       return;
     }
+    
+    const prParse = prResult.graph;
+    const prFailedFiles = prResult.failedFiles;
     
     const prHealth = await runHealth(projectPath);
     
@@ -126,8 +129,10 @@ async function run(): Promise<void> {
     await exec.exec('git', ['checkout', baseSha]);
     
     core.info('Analyzing base branch...');
-    const baseParse = await runParse(projectPath);
-    const baseHealth = isNoParseableFiles(baseParse) ? baseParse : await runHealth(projectPath);
+    const baseResult = await runParse(projectPath);
+    const baseParse = isNoParseableFiles(baseResult) ? baseResult : baseResult.graph;
+    const baseFailedFiles = isNoParseableFiles(baseResult) ? 0 : baseResult.failedFiles;
+    const baseHealth = isNoParseableFiles(baseResult) ? baseResult : await runHealth(projectPath);
     
     core.info('Switching back to PR branch...');
     const prSha = github.context.payload.pull_request?.head?.sha;
@@ -157,7 +162,10 @@ async function run(): Promise<void> {
     const impact = analyzeImpact(diff, prParse);
     
     core.info('Building comment...');
-    const comment = buildComment(diff, impact, commentHeader);
+    const comment = buildComment(diff, impact, commentHeader, {
+      pr: prFailedFiles,
+      base: baseFailedFiles
+    });
     
     core.info('Posting comment to PR...');
     await postComment(octokit, owner, repo, prNumber, commentHeader, comment);

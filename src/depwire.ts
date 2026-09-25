@@ -6,6 +6,35 @@ import { ParseResult, HealthReport, NoParseableFilesResult } from './types';
 
 const NO_PARSEABLE_FILES_EXIT_CODE = 2;
 
+export interface ParseRunResult {
+  graph: ParseResult;
+  failedFiles: number;
+}
+
+const FAILED_FILES_RE = /^(\d+) files failed$/m;
+const ERROR_FILE_RE = /^Error parsing file /m;
+
+function countFailedFiles(stdout: string, stderr: string): number {
+  const m = stdout.match(FAILED_FILES_RE);
+  if (m) {
+    return parseInt(m[1], 10);
+  }
+  return (stderr.match(ERROR_FILE_RE) || []).length;
+}
+
+// depwire-cli 1.20.0 writes depwire-output.json next to the project root
+// (the path argument), while older releases wrote it relative to the cwd.
+// Check both so users who override depwire-version to an older release
+// keep working.
+function outputCandidates(projectPath: string): string[] {
+  const projectRoot = path.resolve(process.cwd(), projectPath);
+  return [
+    path.join(projectRoot, 'depwire-output.json'),
+    path.join(projectRoot, '.depwire', 'depwire-output.json'),
+    path.join(process.cwd(), 'depwire-output.json')
+  ];
+}
+
 export async function installDepwire(version: string): Promise<void> {
   const pkg = version === 'latest' ? 'depwire-cli' : `depwire-cli@${version}`;
   core.info(`Installing ${pkg}...`);
@@ -20,16 +49,16 @@ export async function installDepwire(version: string): Promise<void> {
   }
 }
 
-export async function runParse(projectPath: string): Promise<ParseResult | NoParseableFilesResult> {
+export async function runParse(projectPath: string): Promise<ParseRunResult | NoParseableFilesResult> {
   core.info(`Running depwire parse ${projectPath}...`);
   
-  // depwire-cli always writes depwire-output.json relative to the process's
-  // current working directory, regardless of the project path argument.
-  const outputFile = path.join(process.cwd(), 'depwire-output.json');
+  const candidates = outputCandidates(projectPath);
   
-  if (fs.existsSync(outputFile)) {
-    core.info(`Removing existing ${outputFile}`);
-    fs.unlinkSync(outputFile);
+  for (const outputFile of candidates) {
+    if (fs.existsSync(outputFile)) {
+      core.info(`Removing existing ${outputFile}`);
+      fs.unlinkSync(outputFile);
+    }
   }
   
   let stdout = '';
@@ -66,22 +95,35 @@ export async function runParse(projectPath: string): Promise<ParseResult | NoPar
       throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
     }
     
-    if (!fs.existsSync(outputFile)) {
-      throw new Error(`depwire parse did not create output file at ${outputFile}`);
+    // 1.20.0 exits 0 with an empty graph when nothing is parseable.
+    const failedFiles = countFailedFiles(stdout, stderr);
+    const outputFile = candidates.find(f => fs.existsSync(f));
+    
+    if (!outputFile) {
+      throw new Error(`depwire parse did not create output file (looked in ${candidates.join(', ')})`);
     }
     
     const fileContent = fs.readFileSync(outputFile, 'utf-8');
     const result = JSON.parse(fileContent) as ParseResult;
     
+    if (result.files.length === 0 && result.nodes.length === 0) {
+      core.info(`depwire parse found no parseable files at ${projectPath}`);
+      fs.unlinkSync(outputFile);
+      return { status: 'no_parseable_files' };
+    }
+    
     core.info(`Parsed ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
+    if (failedFiles > 0) {
+      core.warning(`${failedFiles} file(s) failed to parse — analysis is based on a partial graph`);
+    }
     
     fs.unlinkSync(outputFile);
     
-    return result;
+    return { graph: result, failedFiles };
     
   } catch (error) {
     if (error instanceof SyntaxError) {
-      core.error(`Failed to parse JSON from ${outputFile}`);
+      core.error(`Failed to parse JSON from depwire output`);
       throw new Error(`Invalid JSON in depwire output file`);
     }
     throw error;
