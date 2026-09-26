@@ -11,8 +11,12 @@ export type SymbolKind =
   | 'method'
   | 'property'
   | 'decorator'
-  | 'module';
+  | 'module'
+  | 'file';
 
+// depwire-cli 1.18.0 unified TS inheritance on 'inherits'; 'extends' is kept
+// because older CLI releases (selectable via the depwire-version input) emit it.
+// 'references-type' replaced 'type_references'/'references' in 1.17.0+.
 export type EdgeKind =
   | 'imports'
   | 'calls'
@@ -21,7 +25,8 @@ export type EdgeKind =
   | 'inherits'
   | 'decorates'
   | 'references'
-  | 'type_references';
+  | 'type_references'
+  | 'references-type';
 
 export interface SymbolNode {
   id: string;
@@ -43,6 +48,7 @@ export interface SymbolEdge {
 }
 
 export interface ParseResult {
+  formatVersion?: number;
   projectRoot: string;
   files: string[];
   nodes: SymbolNode[];

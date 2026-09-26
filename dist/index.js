@@ -29936,6 +29936,14 @@ function formatDelta(delta) {
         return `↓ ${delta}`;
     return '→ 0';
 }
+// depwire-cli 1.20.0 symbol ids carry lexical block paths (e.g.
+// "src/app.ts::main.$b0.label"). Strip the $bN segments so ids read
+// naturally ("src/app.ts::main.label") in the comment.
+function renderSymbolId(id) {
+    return id
+        .replace(/\$b\d+\./g, '')
+        .replace(/\$b\d+$/g, '');
+}
 function getRiskEmoji(type) {
     switch (type) {
         case 'high-risk':
@@ -29946,7 +29954,7 @@ function getRiskEmoji(type) {
             return '✅ Low';
     }
 }
-function buildComment(diff, impact, header) {
+function buildComment(diff, impact, header, parseFailures) {
     const lines = [];
     lines.push(header);
     lines.push('');
@@ -29958,6 +29966,15 @@ function buildComment(diff, impact, header) {
     lines.push(`| Edges | ${diff.healthDelta.before.projectStats.edges} | ${diff.healthDelta.after.projectStats.edges} | ${formatDelta(diff.healthDelta.after.projectStats.edges - diff.healthDelta.before.projectStats.edges)} |`);
     lines.push(`| Health Score | ${diff.healthDelta.before.overall}/100 (${diff.healthDelta.before.grade}) | ${diff.healthDelta.after.overall}/100 (${diff.healthDelta.after.grade}) | ${formatDelta(diff.healthDelta.overallDelta)} |`);
     lines.push('');
+    if (parseFailures && (parseFailures.pr > 0 || parseFailures.base > 0)) {
+        const parts = [];
+        if (parseFailures.pr > 0)
+            parts.push(`${parseFailures.pr} on this branch`);
+        if (parseFailures.base > 0)
+            parts.push(`${parseFailures.base} on the base branch`);
+        lines.push(`> ⚠️ **Partial graph** — ${parts.join(', ')} source file(s) failed to parse and are excluded from this analysis.`);
+        lines.push('');
+    }
     lines.push('### Health Score Breakdown');
     lines.push('| Dimension | Base | PR | Delta |');
     lines.push('|-----------|------|-----|-------|');
@@ -30049,7 +30066,7 @@ function buildComment(diff, impact, header) {
         lines.push('```');
         const edgesToShow = diff.edges.added.slice(0, 20);
         for (const edge of edgesToShow) {
-            lines.push(`${edge.source} → ${edge.target} (${edge.kind})`);
+            lines.push(`${renderSymbolId(edge.source)} → ${renderSymbolId(edge.target)} (${edge.kind})`);
         }
         if (diff.edges.added.length > 20) {
             lines.push(`...and ${diff.edges.added.length - 20} more edges`);
@@ -30113,6 +30130,27 @@ const core = __importStar(__nccwpck_require__(7484));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
 const NO_PARSEABLE_FILES_EXIT_CODE = 2;
+const FAILED_FILES_RE = /^(\d+) files failed$/m;
+const ERROR_FILE_RE = /^Error parsing file /m;
+function countFailedFiles(stdout, stderr) {
+    const m = stdout.match(FAILED_FILES_RE);
+    if (m) {
+        return parseInt(m[1], 10);
+    }
+    return (stderr.match(ERROR_FILE_RE) || []).length;
+}
+// depwire-cli 1.20.0 writes depwire-output.json next to the project root
+// (the path argument), while older releases wrote it relative to the cwd.
+// Check both so users who override depwire-version to an older release
+// keep working.
+function outputCandidates(projectPath) {
+    const projectRoot = path.resolve(process.cwd(), projectPath);
+    return [
+        path.join(projectRoot, 'depwire-output.json'),
+        path.join(projectRoot, '.depwire', 'depwire-output.json'),
+        path.join(process.cwd(), 'depwire-output.json')
+    ];
+}
 async function installDepwire(version) {
     const pkg = version === 'latest' ? 'depwire-cli' : `depwire-cli@${version}`;
     core.info(`Installing ${pkg}...`);
@@ -30128,12 +30166,12 @@ async function installDepwire(version) {
 }
 async function runParse(projectPath) {
     core.info(`Running depwire parse ${projectPath}...`);
-    // depwire-cli always writes depwire-output.json relative to the process's
-    // current working directory, regardless of the project path argument.
-    const outputFile = path.join(process.cwd(), 'depwire-output.json');
-    if (fs.existsSync(outputFile)) {
-        core.info(`Removing existing ${outputFile}`);
-        fs.unlinkSync(outputFile);
+    const candidates = outputCandidates(projectPath);
+    for (const outputFile of candidates) {
+        if (fs.existsSync(outputFile)) {
+            core.info(`Removing existing ${outputFile}`);
+            fs.unlinkSync(outputFile);
+        }
     }
     let stdout = '';
     let stderr = '';
@@ -30165,18 +30203,29 @@ async function runParse(projectPath) {
             }
             throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
         }
-        if (!fs.existsSync(outputFile)) {
-            throw new Error(`depwire parse did not create output file at ${outputFile}`);
+        // 1.20.0 exits 0 with an empty graph when nothing is parseable.
+        const failedFiles = countFailedFiles(stdout, stderr);
+        const outputFile = candidates.find(f => fs.existsSync(f));
+        if (!outputFile) {
+            throw new Error(`depwire parse did not create output file (looked in ${candidates.join(', ')})`);
         }
         const fileContent = fs.readFileSync(outputFile, 'utf-8');
         const result = JSON.parse(fileContent);
+        if (result.files.length === 0 && result.nodes.length === 0) {
+            core.info(`depwire parse found no parseable files at ${projectPath}`);
+            fs.unlinkSync(outputFile);
+            return { status: 'no_parseable_files' };
+        }
         core.info(`Parsed ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
+        if (failedFiles > 0) {
+            core.warning(`${failedFiles} file(s) failed to parse — analysis is based on a partial graph`);
+        }
         fs.unlinkSync(outputFile);
-        return result;
+        return { graph: result, failedFiles };
     }
     catch (error) {
         if (error instanceof SyntaxError) {
-            core.error(`Failed to parse JSON from ${outputFile}`);
+            core.error(`Failed to parse JSON from depwire output`);
             throw new Error(`Invalid JSON in depwire output file`);
         }
         throw error;
@@ -30535,7 +30584,7 @@ async function run() {
     try {
         const token = core.getInput('github-token', { required: true });
         const projectPath = core.getInput('path') || '.';
-        const depwireVersion = core.getInput('depwire-version') || '1.15.0';
+        const depwireVersion = core.getInput('depwire-version') || '1.20.1';
         const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
         const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
         const octokit = github.getOctokit(token);
@@ -30548,13 +30597,15 @@ async function run() {
         core.info('Starting Depwire PR Impact Analysis...');
         await (0, depwire_1.installDepwire)(depwireVersion);
         core.info('Analyzing PR branch...');
-        const prParse = await (0, depwire_1.runParse)(projectPath);
-        if (isNoParseableFiles(prParse)) {
+        const prResult = await (0, depwire_1.runParse)(projectPath);
+        if (isNoParseableFiles(prResult)) {
             core.info(`No parseable files found at ${projectPath}. Nothing to analyze.`);
             await postComment(octokit, owner, repo, prNumber, commentHeader, `${commentHeader}\n\nDepwire found no supported files at \`${projectPath}\` — nothing to analyze.`);
             core.info('Depwire PR Impact Analysis complete (nothing to analyze).');
             return;
         }
+        const prParse = prResult.graph;
+        const prFailedFiles = prResult.failedFiles;
         const prHealth = await (0, depwire_1.runHealth)(projectPath);
         if (isNoParseableFiles(prHealth)) {
             core.info(`No parseable files found at ${projectPath}. Nothing to analyze.`);
@@ -30570,8 +30621,10 @@ async function run() {
         await exec.exec('git', ['fetch', 'origin', baseSha]);
         await exec.exec('git', ['checkout', baseSha]);
         core.info('Analyzing base branch...');
-        const baseParse = await (0, depwire_1.runParse)(projectPath);
-        const baseHealth = isNoParseableFiles(baseParse) ? baseParse : await (0, depwire_1.runHealth)(projectPath);
+        const baseResult = await (0, depwire_1.runParse)(projectPath);
+        const baseParse = isNoParseableFiles(baseResult) ? baseResult : baseResult.graph;
+        const baseFailedFiles = isNoParseableFiles(baseResult) ? 0 : baseResult.failedFiles;
+        const baseHealth = isNoParseableFiles(baseResult) ? baseResult : await (0, depwire_1.runHealth)(projectPath);
         core.info('Switching back to PR branch...');
         const prSha = github.context.payload.pull_request?.head?.sha;
         if (!prSha) {
@@ -30589,7 +30642,10 @@ async function run() {
         core.info('Analyzing impact...');
         const impact = (0, impact_1.analyzeImpact)(diff, prParse);
         core.info('Building comment...');
-        const comment = (0, comment_1.buildComment)(diff, impact, commentHeader);
+        const comment = (0, comment_1.buildComment)(diff, impact, commentHeader, {
+            pr: prFailedFiles,
+            base: baseFailedFiles
+        });
         core.info('Posting comment to PR...');
         await postComment(octokit, owner, repo, prNumber, commentHeader, comment);
         core.setOutput('health-score', prHealth.overall);

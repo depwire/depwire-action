@@ -1,9 +1,23 @@
 import { DependencyDiff, ImpactAnalysis } from './types';
 
+export interface ParseFailureCounts {
+  pr: number;
+  base: number;
+}
+
 function formatDelta(delta: number): string {
   if (delta > 0) return `↑ +${delta}`;
   if (delta < 0) return `↓ ${delta}`;
   return '→ 0';
+}
+
+// depwire-cli 1.20.0 symbol ids carry lexical block paths (e.g.
+// "src/app.ts::main.$b0.label"). Strip the $bN segments so ids read
+// naturally ("src/app.ts::main.label") in the comment.
+function renderSymbolId(id: string): string {
+  return id
+    .replace(/\$b\d+\./g, '')
+    .replace(/\$b\d+$/g, '');
 }
 
 function getRiskEmoji(type: 'high-risk' | 'medium-risk' | 'low-risk'): string {
@@ -20,7 +34,8 @@ function getRiskEmoji(type: 'high-risk' | 'medium-risk' | 'low-risk'): string {
 export function buildComment(
   diff: DependencyDiff,
   impact: ImpactAnalysis,
-  header: string
+  header: string,
+  parseFailures?: ParseFailureCounts
 ): string {
   const lines: string[] = [];
   
@@ -35,6 +50,14 @@ export function buildComment(
   lines.push(`| Edges | ${diff.healthDelta.before.projectStats.edges} | ${diff.healthDelta.after.projectStats.edges} | ${formatDelta(diff.healthDelta.after.projectStats.edges - diff.healthDelta.before.projectStats.edges)} |`);
   lines.push(`| Health Score | ${diff.healthDelta.before.overall}/100 (${diff.healthDelta.before.grade}) | ${diff.healthDelta.after.overall}/100 (${diff.healthDelta.after.grade}) | ${formatDelta(diff.healthDelta.overallDelta)} |`);
   lines.push('');
+  
+  if (parseFailures && (parseFailures.pr > 0 || parseFailures.base > 0)) {
+    const parts: string[] = [];
+    if (parseFailures.pr > 0) parts.push(`${parseFailures.pr} on this branch`);
+    if (parseFailures.base > 0) parts.push(`${parseFailures.base} on the base branch`);
+    lines.push(`> ⚠️ **Partial graph** — ${parts.join(', ')} source file(s) failed to parse and are excluded from this analysis.`);
+    lines.push('');
+  }
   
   lines.push('### Health Score Breakdown');
   lines.push('| Dimension | Base | PR | Delta |');
@@ -141,7 +164,7 @@ export function buildComment(
     
     const edgesToShow = diff.edges.added.slice(0, 20);
     for (const edge of edgesToShow) {
-      lines.push(`${edge.source} → ${edge.target} (${edge.kind})`);
+      lines.push(`${renderSymbolId(edge.source)} → ${renderSymbolId(edge.target)} (${edge.kind})`);
     }
     
     if (diff.edges.added.length > 20) {

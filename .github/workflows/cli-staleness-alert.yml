@@ -1,0 +1,114 @@
+name: Depwire CLI staleness alert
+
+on:
+  schedule:
+    # Weekly, Mondays 06:23 UTC (off the top of the hour to avoid load spikes)
+    - cron: '23 6 * * 1'
+  workflow_dispatch: {}
+
+# Alert-only: this workflow never bumps the pin, publishes, or modifies the
+# repository. GITHUB_TOKEN only (no PAT); issues:write is the single scope
+# needed to open/update/close the alert issue. The pinned version is read
+# from action.yml on the default branch via raw.githubusercontent.com (this
+# repo is public), so no contents scope is required.
+permissions:
+  issues: write
+
+concurrency:
+  group: cli-staleness-alert
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare pinned depwire-cli version with npm latest
+        id: compare
+        env:
+          ACTION_YML_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/action.yml
+        run: |
+          set -euo pipefail
+          PINNED="$(
+            curl -fsSL "$ACTION_YML_URL" \
+              | awk '/^  depwire-version:/{f=1; next} f && /default:/{print; exit}' \
+              | sed -E "s/.*default:[[:space:]]*'([^']+)'.*/\1/"
+          )"
+          if ! echo "$PINNED" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Could not read a semantic-version default from action.yml (got: '$PINNED')." >&2
+            exit 1
+          fi
+          LATEST="$(npm view depwire-cli version)"
+          echo "pinned=$PINNED"
+          echo "latest=$LATEST"
+          {
+            echo "pinned=$PINNED"
+            echo "latest=$LATEST"
+            node -e '
+              const [pinned, latest] = process.argv.slice(1);
+              const semver = (v) => v.split(".").map(Number);
+              if (!/^\d+\.\d+\.\d+$/.test(latest)) {
+                console.log("stale=false");
+                process.exit(0);
+              }
+              const [pmaj, pmin] = semver(pinned);
+              const [lmaj, lmin] = semver(latest);
+              const stale = lmaj > pmaj || (lmaj === pmaj && lmin > pmin);
+              console.log(`stale=${stale}`);
+            ' "$PINNED" "$LATEST"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the staleness issue
+        if: steps.compare.outputs.stale == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINNED: ${{ steps.compare.outputs.pinned }}
+          LATEST: ${{ steps.compare.outputs.latest }}
+        run: |
+          set -euo pipefail
+          TITLE="Default depwire-cli pin is stale"
+          BODY_FILE="$(mktemp)"
+          {
+            echo "The default \`depwire-cli\` pin in \`action.yml\` is behind npm \`latest\` by a minor or more:"
+            echo
+            echo "| | Version |"
+            echo "|---|---|"
+            echo "| Pinned default | \`$PINNED\` |"
+            echo "| npm latest | \`$LATEST\` |"
+            echo
+            echo "PR-impact comments are therefore computed on an outdated graph format. This is an"
+            echo "alert only — the pin is never bumped automatically. To resolve, bump the"
+            echo "\`depwire-version\` default in \`action.yml\` on a branch, review the depwire-cli"
+            echo "changelog, and release as usual (manual tag)."
+            echo
+            echo "_Checked weekly by the \`cli-staleness-alert\` workflow. Last checked: $(date -u +%Y-%m-%d)._"
+            echo "<!-- depwire-cli-staleness-alert -->"
+          } > "$BODY_FILE"
+          ISSUE_NUMBER="$(
+            gh issue list --state open --limit 500 --json number,title \
+              --jq '.[] | select(.title == "Default depwire-cli pin is stale") | .number' \
+              | head -1
+          )"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            echo "Updating existing alert issue #$ISSUE_NUMBER"
+            gh issue edit "$ISSUE_NUMBER" --body-file "$BODY_FILE"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+          fi
+
+      - name: Close the staleness issue if the pin is current
+        if: steps.compare.outputs.stale != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ISSUE_NUMBER="$(
+            gh issue list --state open --limit 500 --json number,title \
+              --jq '.[] | select(.title == "Default depwire-cli pin is stale") | .number' \
+              | head -1
+          )"
+          if [ -n "$ISSUE_NUMBER" ]; then
+            echo "Closing alert issue #$ISSUE_NUMBER — pin matches npm latest."
+            gh issue close "$ISSUE_NUMBER" --comment "The pinned default now matches npm latest. Closing this alert."
+          else
+            echo "No open alert issue; nothing to do."
+          fi
