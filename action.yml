@@ -20,7 +20,7 @@ inputs:
   depwire-version:
     description: 'Version of depwire-cli to use. Pinned to a known-good release by default; set to "latest" to opt in to the newest release.'
     required: false
-    default: '1.20.0'
+    default: '1.20.1'
   
   show-diagram:
     description: 'Reserved for a future release — arc diagrams are not yet rendered in PR comments. Currently ignored.'

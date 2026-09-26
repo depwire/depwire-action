@@ -1,12 +1,16 @@
 # Changelog
 
-## 1.0.5
+## 1.0.6
 
-### Default CLI: depwire-cli 1.15.0 → 1.20.0
+### Default CLI: depwire-cli 1.15.0 → 1.20.1
 
-Raises the default `depwire-version` pin from `1.15.0` to `1.20.0`. Releases through
+Raises the default `depwire-version` pin from `1.15.0` to `1.20.1`. Releases through
 v1.0.4 shipped the pre-audit `1.9.2` parser, so users pinned to those versions are
-jumping from `1.9.2` straight to `1.20.0`.
+jumping from `1.9.2` straight to `1.20.1`.
+
+`1.20.1` is a remediation and accuracy release on top of `1.20.0` — dependency updates
+(production advisories 10 → 0) and scanner advisory-reporting accuracy. The graph shape
+is unchanged from `1.20.0` (formatVersion 2), so nothing else in the Action shifts.
 
 What this changes in PR-impact comments:
 
@@ -24,11 +28,11 @@ What this changes in PR-impact comments:
 
 ### Action fixes
 
-- `depwire parse` output is now read from the analyzed project path (1.20.0 writes
+- `depwire parse` output is now read from the analyzed project path (1.20.0+ writes
   `depwire-output.json` next to the project root, not the working directory), fixing
   monorepo usage with the `path` input. The previous working-directory location is kept
   as a fallback for older pinned CLI versions.
-- Directories with no parseable files are detected from the (now empty) graph — 1.20.0
+- Directories with no parseable files are detected from the (now empty) graph — 1.20.0+
   exits 0 there instead of the exit code 2 the action previously relied on — so the
   neutral "nothing to analyze" comment is still posted.
 
