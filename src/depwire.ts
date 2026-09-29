@@ -113,7 +113,7 @@ export async function runParse(projectPath: string): Promise<ParseRunResult | No
       return { status: 'no_parseable_files' };
     }
     
-    core.info(`Parsed ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
+    core.info(`Graph contains ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
     if (failedFiles > 0) {
       core.warning(`${failedFiles} file(s) failed to parse — analysis is based on a partial graph`);
     }

@@ -2,6 +2,8 @@
 
 ## 1.0.7
 
+- Label the graph metadata file count as graph files, distinct from parsed files.
+
 - Bump the default `depwire-cli` pin from `1.20.1` to `1.20.2`. Source paths
   are consistently project-relative with POSIX separators.
 - Retain project-root output discovery: CLI 1.20.2 still writes its JSON there;
