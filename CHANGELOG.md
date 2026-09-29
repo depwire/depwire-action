@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7
+
+- Bump the default `depwire-cli` pin from `1.20.1` to `1.20.2`. Source paths
+  are consistently project-relative with POSIX separators.
+- Retain project-root output discovery: CLI 1.20.2 still writes its JSON there;
+  source-path normalization is separate and requires no Action transformation.
+- CLI 1.20.2 exits 2 when no files are parseable, handled as neutral
+  "nothing to analyze" by the existing exit-code branch. Keep the empty-graph
+  fallback for older CLI overrides; it is bypassed for the new exit code.
+
 ## 1.0.6
 
 ### Default CLI: depwire-cli 1.15.0 → 1.20.1

@@ -24,8 +24,8 @@ function countFailedFiles(stdout: string, stderr: string): number {
 
 // depwire-cli 1.20.0 writes depwire-output.json next to the project root
 // (the path argument), while older releases wrote it relative to the cwd.
-// Check both so users who override depwire-version to an older release
-// keep working.
+// 1.20.2 still uses the project root; its POSIX source-path normalization
+// does not change the output location. Keep fallbacks for older CLI overrides.
 function outputCandidates(projectPath: string): string[] {
   const projectRoot = path.resolve(process.cwd(), projectPath);
   return [
@@ -95,7 +95,8 @@ export async function runParse(projectPath: string): Promise<ParseRunResult | No
       throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
     }
     
-    // 1.20.0 exits 0 with an empty graph when nothing is parseable.
+    // Legacy 1.20.0/1.20.1 overrides exit 0 with an empty graph.
+    // 1.20.2 exits 2 and returns above, so this fallback does not run twice.
     const failedFiles = countFailedFiles(stdout, stderr);
     const outputFile = candidates.find(f => fs.existsSync(f));
     
