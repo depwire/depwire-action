@@ -95,7 +95,7 @@ Every comment includes a footer link to [Depwire](https://depwire.dev) for local
 |-------|-------------|----------|---------|
 | `github-token` | GitHub token for posting PR comments | Yes | `${{ github.token }}` |
 | `path` | Path to the project to analyze (relative to repo root) | No | `.` |
-| `depwire-version` | Version of `depwire-cli` to use. Hard-pinned per Action release for reproducibility (see [Version pinning policy](#version-pinning-policy)) | No | `1.20.2` |
+| `depwire-version` | Version of `depwire-cli` to use. Hard-pinned per Action release for reproducibility (see [Version pinning policy](#version-pinning-policy)) | No | `1.21.2` |
 | `fail-on-score-drop` | Fail the action if health score drops by more than this amount | No | `0` |
 | `show-diagram` | Include arc diagram in PR comment (future feature) | No | `true` |
 | `comment-header` | Custom header for the PR comment | No | `## 🔍 Depwire PR Impact Analysis` |
@@ -160,8 +160,13 @@ Or pin to a different specific version:
 - uses: depwire/depwire-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    depwire-version: '1.20.2'
+    depwire-version: '1.21.2'
 ```
+
+CLI 1.21.2 includes the 1.21.1 fix for command injection through git branch names,
+file names, and revision arguments. Upgrade to Action `v1.0.7` when released
+(or its release commit), and bump any explicit `depwire-version` pin to `1.21.2`,
+especially for workflows analyzing PRs from forks. Older pins remain unchanged.
 
 Pin drift is surfaced automatically: a weekly scheduled workflow in this repository
 (`cli-staleness-alert`) compares the pinned default against the npm `latest` dist-tag and opens

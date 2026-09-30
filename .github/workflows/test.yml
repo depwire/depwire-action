@@ -24,6 +24,12 @@ jobs:
       - name: Build action
         run: npm run build
       
+      - name: Install pinned CLI for integration fixture
+        run: npm install -g depwire-cli@1.21.2
+
+      - name: V2 and crafted-branch integration checks
+        run: npm run test:integration
+
       - name: Check dist exists
         run: |
           if [ ! -f dist/index.js ]; then
