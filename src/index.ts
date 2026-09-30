@@ -66,7 +66,7 @@ async function run(): Promise<void> {
   try {
     const token = core.getInput('github-token', { required: true });
     const projectPath = core.getInput('path') || '.';
-    const depwireVersion = core.getInput('depwire-version') || '1.20.1';
+    const depwireVersion = core.getInput('depwire-version') || '1.21.2';
     const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
     const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
     

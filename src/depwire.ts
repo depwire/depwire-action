@@ -24,8 +24,8 @@ function countFailedFiles(stdout: string, stderr: string): number {
 
 // depwire-cli 1.20.0 writes depwire-output.json next to the project root
 // (the path argument), while older releases wrote it relative to the cwd.
-// Check both so users who override depwire-version to an older release
-// keep working.
+// Verified through 1.21.2: project-root output and POSIX source paths are
+// unchanged. Keep fallbacks for older CLI overrides.
 function outputCandidates(projectPath: string): string[] {
   const projectRoot = path.resolve(process.cwd(), projectPath);
   return [
@@ -95,7 +95,8 @@ export async function runParse(projectPath: string): Promise<ParseRunResult | No
       throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
     }
     
-    // 1.20.0 exits 0 with an empty graph when nothing is parseable.
+    // Legacy 1.20.0/1.20.1 overrides exit 0 with an empty graph.
+    // 1.20.2–1.21.2 exit 2 and return above, bypassing this legacy fallback.
     const failedFiles = countFailedFiles(stdout, stderr);
     const outputFile = candidates.find(f => fs.existsSync(f));
     
@@ -112,7 +113,7 @@ export async function runParse(projectPath: string): Promise<ParseRunResult | No
       return { status: 'no_parseable_files' };
     }
     
-    core.info(`Parsed ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
+    core.info(`Graph contains ${result.metadata.fileCount} files with ${result.metadata.nodeCount} symbols`);
     if (failedFiles > 0) {
       core.warning(`${failedFiles} file(s) failed to parse — analysis is based on a partial graph`);
     }

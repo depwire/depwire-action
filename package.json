@@ -1,11 +1,12 @@
 {
   "name": "depwire-action",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "GitHub Action - Depwire dependency analysis on every PR. Shows impact, health score delta, and arc diagram",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:integration": "node tests/integration.cjs"
   },
   "repository": {
     "type": "git",

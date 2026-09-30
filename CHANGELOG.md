@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.7
+
+- Bump the default `depwire-cli` pin from `1.20.1` directly to `1.21.2`.
+  This includes the **command-injection RCE fix in CLI 1.21.1**: shell
+  metacharacters in branch names, file names, and revision arguments could
+  reach shell-based git invocations. PRs from forks can carry attacker-controlled
+  branch names. The CLI now invokes git with argument arrays and no shell.
+- **Users must bump their pin**: update the Action to `v1.0.7` when released
+  (or its release commit), and update any explicit `depwire-version` override
+  to `1.21.2`. Older Action tags and explicit CLI pins do not update themselves.
+- Retain project-root output discovery and older-CLI fallbacks. Verified on
+  1.21.2: monorepo source paths remain project-relative POSIX; empty parses
+  exit 2 and produce a neutral "nothing to analyze" comment. Partial parses
+  remain successful with a partial-graph warning. Graph format remains V2.
+- Add a repeatable V2 integration fixture and crafted-branch regression check.
+- CLI installation remains `npm install -g depwire-cli@<version>` from the
+  registry. The new 1.21.2 git/local-source `prepare` build does not run here.
+- Label the graph metadata file count as graph files, distinct from parsed files.
+
 ## 1.0.6
 
 ### Default CLI: depwire-cli 1.15.0 → 1.20.1
