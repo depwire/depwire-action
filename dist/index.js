@@ -30141,8 +30141,8 @@ function countFailedFiles(stdout, stderr) {
 }
 // depwire-cli 1.20.0 writes depwire-output.json next to the project root
 // (the path argument), while older releases wrote it relative to the cwd.
-// Verified through 1.21.2: project-root output and POSIX source paths are
-// unchanged. Keep fallbacks for older CLI overrides.
+// Keep project-root output and POSIX source paths, with fallbacks for older
+// CLI overrides. See CHANGELOG.md for historical compatibility verification.
 function outputCandidates(projectPath) {
     const projectRoot = path.resolve(process.cwd(), projectPath);
     return [
@@ -30204,7 +30204,7 @@ async function runParse(projectPath) {
             throw new Error(`depwire parse failed with exit code ${exitCode}. stderr: ${stderr || '(empty)'}`);
         }
         // Legacy 1.20.0/1.20.1 overrides exit 0 with an empty graph.
-        // 1.20.2–1.21.2 exit 2 and return above, bypassing this legacy fallback.
+        // CLI versions that exit 2 return above, bypassing this legacy fallback.
         const failedFiles = countFailedFiles(stdout, stderr);
         const outputFile = candidates.find(f => fs.existsSync(f));
         if (!outputFile) {
@@ -30585,7 +30585,7 @@ async function run() {
     try {
         const token = core.getInput('github-token', { required: true });
         const projectPath = core.getInput('path') || '.';
-        const depwireVersion = core.getInput('depwire-version') || '1.21.2';
+        const depwireVersion = core.getInput('depwire-version') || '1.28.2';
         const failOnScoreDrop = parseInt(core.getInput('fail-on-score-drop') || '0', 10);
         const commentHeader = core.getInput('comment-header') || '## 🔍 Depwire PR Impact Analysis';
         const octokit = github.getOctokit(token);

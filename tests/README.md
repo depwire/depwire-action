@@ -4,7 +4,7 @@ Run as a non-root user (the unreadable-file case requires real permission denial
 
 ```sh
 npm ci
-npm install -g depwire-cli@1.21.2
+npm install -g depwire-cli@1.28.2
 npm run test:integration
 ```
 
@@ -28,10 +28,8 @@ The V2 base/PR sources reproduce the prior 1.20.2 fixture. Assertions cover:
   sink fixed in 1.21.1: the literal branch is restored and no marker is created.
   The Action itself invokes `parse`/`health` and uses argument-array git calls.
 
-All checks passed against registry CLI 1.21.2. Output discovery and exit-code
-fallbacks need no behavioral changes from the earlier PR verdict. The
-[upstream changelog](https://github.com/depwire/depwire/blob/v1.21.2/CHANGELOG.md)
-confirms unchanged graph format and parse contracts across 1.21.x.
+The fixture targets registry CLI 1.28.2. See the repository changelog for
+historical CLI compatibility verification.
 
 Installation uses `npm install -g depwire-cli@<version>` in `src/depwire.ts`.
 There is no CLI git-ref install in the Action. A clean registry install with
