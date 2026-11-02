@@ -26,7 +26,7 @@ Module._load = function(id, parent, ...rest) {
   };
   if (id === '@actions/exec') return {...exec, exec: async (cmd, args, opts) => {
     if (cmd === 'npm') {
-      assert.deepEqual(args, ['install', '-g', 'depwire-cli@1.28.2']);
+      assert.deepEqual(args, ['install', '-g', 'depwire-cli@1.28.3']);
       return 0;
     }
     return exec.exec(cmd, args, opts);
