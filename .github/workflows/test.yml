@@ -25,7 +25,7 @@ jobs:
         run: npm run build
       
       - name: Install pinned CLI for integration fixture
-        run: npm install -g depwire-cli@1.28.2
+        run: npm install -g depwire-cli@1.28.3
 
       - name: V2 and crafted-branch integration checks
         run: npm run test:integration

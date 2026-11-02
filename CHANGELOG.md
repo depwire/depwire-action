@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.9
+
+- Bump the default `depwire-cli` pin from `1.28.2` to `1.28.3`, fixing a
+  symlink bypass of the protected-directory guard in `connect_repo` on top of
+  the command-injection fix introduced in CLI 1.21.1.
+- Upgrade to Action `v1.0.9` when released (or its release commit), and update
+  any explicit `depwire-version` pin to `1.28.3`; older pins remain unchanged.
+
 ## 1.0.7
 
 - Bump the default `depwire-cli` pin from `1.20.1` directly to `1.21.2`.

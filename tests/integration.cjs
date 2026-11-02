@@ -1,4 +1,4 @@
-// Requires an installed depwire-cli@1.28.2 on PATH. No GitHub requests are sent.
+// Requires an installed depwire-cli@1.28.3 on PATH. No GitHub requests are sent.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -14,7 +14,7 @@ function run(cmd, args, cwd = repo) {
 function git(...args) { return run('git', args); }
 function check(message) { console.log(`PASS: ${message}`); }
 async function main() {
-  assert.match(run('depwire', ['--version'], root), /\b1\.28\.2\b/);
+  assert.match(run('depwire', ['--version'], root), /\b1\.28\.3\b/);
   run(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'), '--outDir', compiled], root);
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(compiled, 'node_modules'), 'dir');
   const {runParse, runHealth} = require(path.join(compiled, 'depwire.js'));
